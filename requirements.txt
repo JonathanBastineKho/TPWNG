@@ -4,3 +4,5 @@ pillow==12.1.1
 torchvision==0.25.0
 torchinfo==1.8.0
 av==16.1.0
+torchcodec==0.10.0
+scikit-learn==1.6.0

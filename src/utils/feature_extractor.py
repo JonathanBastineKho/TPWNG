@@ -1,31 +1,34 @@
 import torch
 import clip
 from typing import Optional
-from torchvision.io import read_video
+from torchcodec.decoders import VideoDecoder
 from PIL import Image
 
 class CLIPImageFeatureExtractor:
-    def __init__(self, model_name='ViT-B/16', device='cuda'):
+    def __init__(self, model_name: str = 'ViT-B/16', device: str = 'cuda', chunk_size: int = 2048):
         self.device = device
+        self.chunk_size = chunk_size
         self.model, self.preprocess = clip.load(model_name, device=device)
         self.model.eval()
 
     @torch.no_grad()
-    def extract_video(self, video_path: str, fps: Optional[int] = None):
-        video, _, info = read_video(str(video_path), pts_unit='sec')
-        video_fps = info['video_fps']
+    def extract_video(self, video_path: str) -> torch.Tensor:
+        decoder = VideoDecoder(str(video_path), device='cpu', dimension_order='NHWC')
+        n_frames = len(decoder)
 
-        if fps is None:
-            sampled_frames = video  # All frames
-        else:
-            frame_interval = int(video_fps / fps)
-            sampled_frames = video[::frame_interval]  # (T, H, W, C)
+        all_features = []
+        for start in range(0, n_frames, self.chunk_size):
+            frames = decoder[start:start + self.chunk_size].data
 
-        frames_preprocessed = torch.stack([
-            self.preprocess(Image.fromarray(frame.numpy()))
-            for frame in sampled_frames
-        ]).to(self.device)
-        
-        return self.model.encode_image(frames_preprocessed)
+            chunk = torch.stack([
+                self.preprocess(Image.fromarray(f.numpy()))
+                for f in frames
+            ]).to(self.device)
 
-        
+            feats = self.model.encode_image(chunk).float().cpu()
+            feats = feats / feats.norm(dim=-1, keepdim=True)
+            all_features.append(feats)
+
+            torch.cuda.empty_cache()
+
+        return torch.cat(all_features, dim=0)

@@ -209,3 +209,4 @@ __marimo__/
 
 # Dataset folder
 data/*
+.vscode

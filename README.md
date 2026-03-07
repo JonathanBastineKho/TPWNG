@@ -78,16 +78,16 @@ data/
 - [x] NVP model (`src/models/nvp.py`)
 - [x] PLG model (`src/models/plg.py`)
 - [ ] CLIP encoders (`src/models/clip.py`)
-- [ ] TCSAL module (`src/models/tcsal.py`)
+- [x] TCSAL module (`src/models/tcsal.py`)
 - [ ] Complete TPWNG model (`src/models/tpwng.py`)
 
 **Losses**
 - [x] Ranking losses (`src/losses/ranking_loss.py`)
 - [x] Temporal losses (`src/losses/temporal_losses.py`)
-- [ ] DIL loss implementation (`src/losses/dil.py`)
+- [x] DIL loss implementation (`src/losses/dil.py`)
 
 **Data Pipeline**
-- [ ] UCF-Crime Dataset class (`data/dataset.py`)
+- [x] UCF-Crime Dataset class (`data/dataset.py`)
 
 **Utilities**
 - [ ] Experiment tracking with Weights & Biases (`src/utils/`)
