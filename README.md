@@ -77,7 +77,7 @@ data/
 **Models**
 - [x] NVP model (`src/models/nvp.py`)
 - [x] PLG model (`src/models/plg.py`)
-- [ ] CLIP encoders (`src/models/clip.py`)
+- [x] CLIP encoders (`src/models/clip.py`)
 - [x] TCSAL module (`src/models/tcsal.py`)
 - [ ] Complete TPWNG model (`src/models/tpwng.py`)
 
