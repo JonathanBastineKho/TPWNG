@@ -118,3 +118,41 @@ class TCSAL(nn.Module):
         """
         x = self.layers(x)
         return self.classifier(x).squeeze(-1)
+
+
+class TFEncoder(nn.Module):
+    """
+    Standard Transformer encoder (global self-attention, causal mask).
+    Used for Table 4 ablation (w TF-encoder).
+    """
+
+    def __init__(
+        self,
+        d_model: int = 512,
+        n_layers: int = 4,
+        n_heads: int = 4,
+        dropout: float = 0.1,
+    ):
+        super().__init__()
+        layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=n_heads,
+            dim_feedforward=d_model * 4,
+            dropout=dropout,
+            activation="gelu",
+            batch_first=True,
+            norm_first=False,
+        )
+        self.encoder = nn.TransformerEncoder(layer, num_layers=n_layers)
+        self.classifier = nn.Sequential(
+            nn.LayerNorm(d_model),
+            nn.Linear(d_model, 1),
+            nn.Sigmoid(),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """x: (B, T, D) -> scores (B, T). Causal mask so position t only sees 0..t."""
+        B, T, D = x.shape
+        mask = torch.triu(torch.ones(T, T, device=x.device, dtype=torch.bool), diagonal=1)
+        x = self.encoder(x, mask=mask)
+        return self.classifier(x).squeeze(-1)

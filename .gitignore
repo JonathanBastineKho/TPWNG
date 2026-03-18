@@ -208,5 +208,31 @@ __marimo__/
 
 
 # Dataset folder
-data/*
-.vscode
+data/
+
+# TPWNG: experiment outputs, checkpoints, logs, plots
+runs/
+
+# Large / generated assets (features, weights, datasets)
+*.zip
+*.tar
+*.tar.gz
+*.pth
+*.ckpt
+
+# Datasets, papers, OS junk
+ucfcrime/
+__MACOSX/
+*.pdf
+arXiv-*/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

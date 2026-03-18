@@ -6,3 +6,6 @@ torchinfo==1.8.0
 av==16.1.0
 torchcodec==0.10.0
 scikit-learn==1.6.0
+numpy>=1.24
+matplotlib>=3.7
+tensorboard>=2.14

@@ -3,18 +3,21 @@ from torch import nn
 
 class SparsityLoss(nn.Module):
     """
-    L_sp: sum((A_i - A_{i+1})^2) / (T-1)
-    Anomalies should happen rarely
+    Paper L_sp: temporal smoothing on similarity vector.
+    sum_j (S_aa_j - S_aa_{j+1})^2. Apply to normalized S_aa (similarity to true
+    anomaly class), not classifier output. Named 'Sparsity' in code for legacy;
+    implements smoothing (adjacent frames similar).
     """
-    def forward(self, anomaly_score: torch.Tensor):
-        differences = anomaly_score[:, 1:] - anomaly_score[:, :-1]
+    def forward(self, similarity_or_score: torch.Tensor):
+        # (B, T) -> squared diff along T
+        differences = similarity_or_score[:, 1:] - similarity_or_score[:, :-1]
         return (differences**2).mean()
 
 
 class SmoothnessLoss(nn.Module):
     """
-    L_sm: sum(A_i) / T
-    Adjacent frames should have similar scores
+    Paper L_sm: sparsity on similarity vector.
+    sum_j S_aa_j. Apply to normalized S_aa. Pushes similarity magnitudes down.
     """
-    def forward(self, anomaly_score: torch.Tensor):
-        return anomaly_score.mean()
+    def forward(self, similarity_or_score: torch.Tensor):
+        return similarity_or_score.mean()
