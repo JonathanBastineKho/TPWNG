@@ -31,6 +31,6 @@ class PseudoLabelGenerator(nn.Module):
         psi_norm = self.normalize(psi)
 
         # Eq (6) Threshold low psi = anomaly
-        return (psi_norm < self.threshold).long()
+        return (psi_norm >= self.threshold).long()
 
 

@@ -5,12 +5,12 @@ from torch import nn
 
 class AdaptiveSpanAttention(nn.Module):
     """
-    Self-attention where each head learns its own attention span (Eq 7-9).
-    The span z is computed from the input, so short events get short spans
-    and long events get long spans automatically.
+    Bidirectional self-attention where each head learns its own
+    attention span via a soft mask (Eq 7-9).
     """
 
-    def __init__(self, d_model: int, n_heads: int, R: float = 256.0, dropout: float = 0.1):
+    def __init__(self, d_model: int, n_heads: int, R: float = 256.0,
+                 dropout: float = 0.1):
         super().__init__()
         assert d_model % n_heads == 0
         self.n_heads = n_heads
@@ -23,46 +23,57 @@ class AdaptiveSpanAttention(nn.Module):
         self.W_v = nn.Linear(d_model, d_model, bias=False)
         self.W_o = nn.Linear(d_model, d_model)
 
-        # Predicts one span scalar per head from pooled input (Eq 8)
+        # Eq 8: predicts one span scalar per head from pooled input
         self.span_net = nn.Linear(d_model, n_heads)
         self.dropout = nn.Dropout(dropout)
 
-    def _soft_mask(self, h: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
-        """χz(h) = clamp((1/R) * (R + z - h), 0, 1)  — Eq 7"""
-        return ((1.0 / self.R) * (self.R + z[:, :, None, None] - h)).clamp(0.0, 1.0)
+    def _soft_mask(self, dist: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
+        """
+        χ_z(h) = clamp((1/R)(R + z - h), 0, 1)  — Eq 7
+
+        Args:
+            dist: (T, T)    — absolute distance between every pair of positions
+            z:    (B, H)    — learned span per head
+        Returns:
+            mask: (B, H, T, T)
+        """
+        # z[:, :, None, None] broadcasts to (B, H, 1, 1)
+        # dist[None, None, :, :] broadcasts to (1, 1, T, T)
+        return ((self.R + z[:, :, None, None] - dist[None, None]) / self.R).clamp(0.0, 1.0)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            x: (B, T, D)
-        Returns:
-            out: (B, T, D)
-        """
         B, T, D = x.shape
 
-        Q = self.W_q(x).view(B, T, self.n_heads, self.d_head).transpose(1, 2)  # (B, H, T, d)
+        Q = self.W_q(x).view(B, T, self.n_heads, self.d_head).transpose(1, 2)
         K = self.W_k(x).view(B, T, self.n_heads, self.d_head).transpose(1, 2)
         V = self.W_v(x).view(B, T, self.n_heads, self.d_head).transpose(1, 2)
 
-        # Learned span per head: z in (0, T)  — Eq 8
         z = T * torch.sigmoid(self.span_net(x.mean(dim=1)))  # (B, H)
 
-        # Distance grid: dist[t, r] = t - r
-        idx = torch.arange(T, device=x.device).float()
-        dist = (idx.unsqueeze(1) - idx.unsqueeze(0)).clamp(min=0)  # (T, T), causal
+        # CAUSAL distance: h = t - r (only past positions, r < t)
+        idx = torch.arange(T, device=x.device, dtype=torch.float32)
+        dist = idx.unsqueeze(0) - idx.unsqueeze(1)  # (T, T), dist[t,r] = t - r
 
-        scores = torch.matmul(Q, K.transpose(-2, -1)) / self.scale  # (B, H, T, T)
+        # Causal mask: frame t can only attend to frames r <= t
+        causal_mask = (dist >= 0).float()  # (T, T), upper-left triangle + diagonal
 
-        # Mask out future positions
-        future = (idx.unsqueeze(0) > idx.unsqueeze(1))  # [t, r]: r > t
-        scores = scores.masked_fill(future.unsqueeze(0).unsqueeze(0), float('-inf'))
+        scores = torch.matmul(Q, K.transpose(-2, -1)) / self.scale
+
+        # Apply causal mask BEFORE softmax (mask out future positions)
+        scores = scores.masked_fill(
+            causal_mask.unsqueeze(0).unsqueeze(0) == 0, float('-inf')
+        )
+
+        # Soft span mask on causal distances (only non-negative distances)
+        dist_causal = dist.clamp(min=0)  # (T, T)
+        span_mask = self._soft_mask(dist_causal, z)  # (B, H, T, T)
 
         attn = torch.softmax(scores, dim=-1)
-        attn = attn * self._soft_mask(dist.unsqueeze(0).unsqueeze(0), z)
+        attn = attn * span_mask
         attn = attn / (attn.sum(dim=-1, keepdim=True) + 1e-8)
         attn = self.dropout(attn)
 
-        out = torch.matmul(attn, V)                              # (B, H, T, d)
+        out = torch.matmul(attn, V)
         out = out.transpose(1, 2).contiguous().view(B, T, D)
         return self.W_o(out)
     
