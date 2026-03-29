@@ -76,3 +76,21 @@ class PromptTextEncoder(nn.Module):
 
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
         return text_features
+
+
+class TextPromptEncoder(PromptTextEncoder):
+    """
+    TPWNG-facing wrapper:
+    TextPromptEncoder(classnames, model_name='ViT-B/16', ctx_length=8, device='cuda')
+    """
+    def __init__(self, classnames, model_name="ViT-B/16", ctx_length=8, device="cuda"):
+        if model_name != pretrained_clip_ver:
+            raise ValueError(
+                f"Only {pretrained_clip_ver} is supported by current setup, got {model_name}"
+            )
+        super().__init__(
+            classnames=classnames,
+            clip_model=clip_model.to(device),
+            embed_dim=feature_dimension,
+            n_ctx=ctx_length,
+        )
